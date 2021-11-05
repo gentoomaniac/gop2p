@@ -16,7 +16,7 @@ type Peer struct {
 }
 
 func (p Peer) String() string {
-	return fmt.Sprintf("%s:%i/%s", p.Address, p.Port, p.ConnectionType)
+	return fmt.Sprintf("%s:%d/%s", p.Address, p.Port, p.ConnectionType)
 }
 
 func (p *Peer) Connect() (err error) {
