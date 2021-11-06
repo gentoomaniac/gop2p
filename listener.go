@@ -1,13 +1,16 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
+	"fmt"
+	"io"
 	"net"
 	"os"
 	"strconv"
 	"sync"
 
 	"github.com/rs/zerolog/log"
+	"google.golang.org/protobuf/proto"
 )
 
 func startListener(host string, port int, connType string) {
@@ -33,20 +36,32 @@ func startListener(host string, port int, connType string) {
 
 func handleIncomingMessage(conn net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
+	defer conn.Close()
 
 	log.Debug().Str("ip", conn.RemoteAddr().String()).Msg("new peer connected")
 
-	connbuf := bufio.NewReader(conn)
-	for {
-		str, err := connbuf.ReadString('\n')
-		if err != nil {
-			break
-		}
-
-		if len(str) > 0 {
-			log.Debug().Str("msg", str).Msg("msg received")
-		}
+	var buf bytes.Buffer
+	_, err := io.Copy(&buf, conn)
+	if err != nil {
+		log.Error().Err(err).Msg("")
+		return
 	}
+
+	msg := new(Message)
+	err = proto.Unmarshal(buf.Bytes(), msg)
+	if err != nil {
+		log.Error().Err(err).Msg("failed unmarshalling message")
+		return
+	}
+	log.Info().Str("message", msg.GetPayload()).Int64("type", msg.GetType()).Msg("")
+
+	peer := new(NewPeer)
+	err = proto.Unmarshal(buf.Bytes(), peer)
+	if err != nil {
+		log.Error().Err(err).Msg("failed unmarshalling message")
+		return
+	}
+	log.Info().Str("newPeer", fmt.Sprintf("%s:%d/%s", peer.GetAddress(), peer.GetPort(), peer.GetProtocol())).Msg("got new peer")
 
 	log.Debug().Str("ip", conn.RemoteAddr().String()).Msg("peer finished")
 }

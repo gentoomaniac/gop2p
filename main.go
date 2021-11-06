@@ -7,6 +7,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gentoomaniac/gocli"
 	"github.com/gentoomaniac/logging"
@@ -52,10 +53,34 @@ func main() {
 			ctx.Exit(1)
 		}
 
+		msg := &Message{
+			Type:    HELLO,
+			Payload: "Hello, Protobuf!",
+		}
+		msg2 := &NewPeer{
+			Address:  "10.1.1.121",
+			Port:     1236,
+			Protocol: "tcp",
+		}
+
 		peer := &Peer{Address: host, Port: port, ConnectionType: "tcp"}
 		log.Debug().Str("seedNode", peer.String()).Msg("sending message")
 		peer.Connect()
-		peer.SendMsg([]byte("Hello, World!"))
+
+		var data []byte
+		if data, err = proto.Marshal(msg); err != nil {
+			log.Error().Err(err).Msg("failed Marshalling msg")
+		}
+		if err := peer.SendMsg(data); err != nil {
+			log.Error().Err(err).Msg("failed sending message")
+		}
+
+		if data, err = proto.Marshal(msg2); err != nil {
+			log.Error().Err(err).Msg("failed Marshalling msg")
+		}
+		if err := peer.SendMsg(data); err != nil {
+			log.Error().Err(err).Msg("failed sending message")
+		}
 		peer.connection.Close()
 	}
 

@@ -1,0 +1,16 @@
+syntax="proto3";
+
+package main;
+
+option go_package = "github.com/gentoomaniac/gop2p";
+
+message Message {
+    int64  type = 1;
+    string payload = 2;
+}
+
+message NewPeer {
+    string address = 1;
+    int64  port = 2;
+    string protocol = 3;
+}

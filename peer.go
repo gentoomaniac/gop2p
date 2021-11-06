@@ -32,6 +32,8 @@ func (p *Peer) Disconnect() {
 	}
 }
 
-func (p *Peer) SendMsg(msg []byte) {
-	p.connection.Write(append(msg, '\n'))
+func (p *Peer) SendMsg(msg []byte) error {
+	p.connection.Write(msg)
+
+	return nil
 }
