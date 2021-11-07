@@ -18,5 +18,6 @@ message SendPeers {
 }
 message PbPeer {
     string address = 1;
-    string protocol = 2;
+    int64    port = 2;
+    string protocol = 3;
 }

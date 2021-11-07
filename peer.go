@@ -6,18 +6,20 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 
 	"github.com/rs/zerolog/log"
 )
 
 type Peer struct {
 	Address    string
+	Port       int
 	Protocol   string
 	Connection net.Conn
 }
 
 func (p Peer) String() string {
-	return fmt.Sprintf("%s/%s", p.Address, p.Protocol)
+	return fmt.Sprintf("%s:%d/%s", p.Address, p.Port, p.Protocol)
 }
 
 func (p Peer) Hash() [32]byte {
@@ -26,7 +28,7 @@ func (p Peer) Hash() [32]byte {
 
 func (p *Peer) Connect() (err error) {
 	log.Debug().Str("peer", p.String()).Msg("opened connection")
-	p.Connection, err = net.Dial(p.Protocol, p.Address)
+	p.Connection, err = net.Dial(p.Protocol, p.Address+":"+strconv.Itoa(p.Port))
 	return
 }
 

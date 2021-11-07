@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -58,7 +60,7 @@ func main() {
 
 	for _, peer := range PeerList {
 		log.Debug().Str("seed", peer.String()).Msg("sending hello to seed")
-		initHello(peer)
+		initHello(peer, cli.ListenAddrress, cli.ListenPort)
 	}
 
 	for RUN {
@@ -83,15 +85,20 @@ func initialiseSeeds(peers Peers, seeds []string) Peers {
 	peers = make(Peers)
 
 	for _, seed := range seeds {
-		newPeer := &Peer{Address: seed, Protocol: "tcp"}
-		peers[newPeer.Hash()] = newPeer
-
-		log.Debug().Str("seedNode", newPeer.String()).Msg("added new peer")
+		address := strings.Split(seed, ":")[0]
+		port, err := strconv.Atoi(strings.Split(seed, ":")[1])
+		if err != nil {
+			log.Error().Err(err).Str("seed", seed).Msg("invalid port for seed")
+		} else {
+			newPeer := &Peer{Address: address, Port: port, Protocol: "tcp"}
+			peers[newPeer.Hash()] = newPeer
+			log.Debug().Str("seedNode", newPeer.String()).Msg("added new peer")
+		}
 	}
 	return peers
 }
 
-func initHello(peer *Peer) {
+func initHello(peer *Peer, address string, port int) {
 	msg := &Message{
 		Type:    HELLO,
 		Payload: "Hello, seed!",
@@ -127,6 +134,19 @@ func initHello(peer *Peer) {
 	}
 
 	log.Debug().Str("payload", msg.Payload).Int("type", int(msg.Type)).Msg("received msg back")
+
+	myself := PbPeer{
+		Address:  address,
+		Port:     int64(port),
+		Protocol: "tcp",
+	}
+	data, err = proto.Marshal(&myself)
+	if err != nil {
+		log.Error().Err(err).Msg("failed Marshalling msg")
+	}
+	if err := peer.SendMsg(data); err != nil {
+		log.Error().Err(err).Msg("failed sending message")
+	}
 
 	peer.Connection.Close()
 }

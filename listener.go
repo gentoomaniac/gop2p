@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/rs/zerolog/log"
@@ -12,7 +12,7 @@ import (
 )
 
 func startListener(host string, port int, connType string) {
-	l, err := net.Listen(connType, host+":"+strconv.Itoa(port))
+	l, err := net.Listen(connType, host+":"+strconv.Itoa(int(port)))
 	if err != nil {
 		log.Error().Err(err).Msg("failed to start listener")
 		os.Exit(1)
@@ -36,8 +36,12 @@ func handleIncomingMessage(conn net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer conn.Close()
 
+	s := strings.Split(conn.RemoteAddr().String(), ":")
+	address := strings.Join(s[:len(s)-1], ":")
+	port, _ := strconv.Atoi(s[len(s)-1])
 	peer := &Peer{
-		Address:    conn.RemoteAddr().String(),
+		Address:    address,
+		Port:       port,
 		Protocol:   "tcp",
 		Connection: conn,
 	}
@@ -69,17 +73,9 @@ func handleIncomingMessage(conn net.Conn, wg *sync.WaitGroup) {
 }
 
 func handleHello(conn net.Conn, peer *Peer, peers Peers) {
-	log.Debug().Str("peer", peer.String()).Str("verb", "hello").Msg("")
-
 	msg := &Message{
 		Type:    HELLO,
-		Payload: "welcome back!",
-	}
-	log.Debug().Int("numberPeers", len(peers)).Msg("")
-	if p := peers[peer.Hash()]; p == nil {
-		peers[peer.Hash()] = peer
-		msg.Payload = "hello, new peer!"
-		log.Info().Str("newPeer", fmt.Sprintf("%s/%s", peer.Address, peer.Protocol)).Msg("got new peer")
+		Payload: "hello, peer!",
 	}
 
 	log.Debug().Str("peer", peer.String()).Msg("sending hello back")
@@ -89,6 +85,25 @@ func handleHello(conn net.Conn, peer *Peer, peers Peers) {
 	}
 	if err := peer.SendMsg(data); err != nil {
 		log.Error().Err(err).Msg("failed sending message")
+	}
+
+	raw, err := peer.GetMessage()
+	if err != nil {
+		log.Error().Err(err).Msg("")
+		return
+	}
+	rPeer := new(PbPeer)
+	err = proto.Unmarshal(raw, rPeer)
+	if err != nil {
+		log.Error().Err(err).Msg("failed unmarshalling message")
+		return
+	}
+	peer.Port = int(rPeer.Port)
+	peer.Protocol = rPeer.Protocol
+
+	if _, exists := peers[peer.Hash()]; !exists {
+		peers[peer.Hash()] = peer
+		log.Info().Str("newPeer", peer.String()).Msg("got new peer")
 	}
 
 }
