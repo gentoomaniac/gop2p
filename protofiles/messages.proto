@@ -9,8 +9,14 @@ message Message {
     string payload = 2;
 }
 
-message NewPeer {
+// Peer management
+message GetPeers {
+    int64 limit = 1;
+}
+message SendPeers {
+    int64 numRecords = 1;
+}
+message PbPeer {
     string address = 1;
-    int64  port = 2;
-    string protocol = 3;
+    string protocol = 2;
 }
