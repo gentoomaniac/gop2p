@@ -22,8 +22,17 @@ func (p Peer) String() string {
 	return fmt.Sprintf("%s:%d/%s", p.Address, p.Port, p.Protocol)
 }
 
-func (p Peer) Hash() [32]byte {
-	return sha256.Sum256([]byte(p.String()))
+func (p Peer) Hash() string {
+	h := sha256.Sum256([]byte(p.String()))
+	return string(h[:32])
+}
+
+func (p Peer) Equal(other Peer) bool {
+	if p.Address != other.Address || p.Port != other.Port || p.Protocol != other.Protocol {
+		return false
+	}
+
+	return true
 }
 
 func (p *Peer) Connect() (err error) {

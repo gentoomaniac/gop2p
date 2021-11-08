@@ -9,7 +9,6 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/gentoomaniac/gocli"
 	"github.com/gentoomaniac/logging"
@@ -23,7 +22,7 @@ var (
 	date    = "unknown"
 )
 
-type Peers map[[32]byte]*Peer
+type Peers map[string]*Peer
 
 var (
 	PeerList Peers
@@ -55,12 +54,27 @@ func main() {
 	RUN = true
 	trapTerm()
 
-	go startListener(cli.ListenAddrress, cli.ListenPort, cli.ConnectionType)
+	self := &Peer{
+		Address:  cli.ListenAddrress,
+		Port:     cli.ListenPort,
+		Protocol: "tcp",
+	}
+
+	go startListener(cli.ListenAddrress, self)
 	time.Sleep(2 * time.Second)
 
+	var newPeers []Peer
 	for _, peer := range PeerList {
-		log.Debug().Str("seed", peer.String()).Msg("sending hello to seed")
-		initHello(peer, cli.ListenAddrress, cli.ListenPort)
+		Hello(peer, self)
+		newPeers := append(newPeers, GetPeers(self, peer)...)
+		log.Debug().Str("from", peer.String()).Int("amount", len(newPeers)).Msg("received peers")
+	}
+	for _, p := range newPeers {
+		log.Debug().Str("peer", p.String()).Msg("received peer")
+		if _, exists := PeerList[p.Hash()]; !exists && p.Hash() != self.Hash() {
+			PeerList[p.Hash()] = &p
+			log.Debug().Str("newPeer", p.String()).Msg("received new peer")
+		}
 	}
 
 	for RUN {
@@ -96,59 +110,6 @@ func initialiseSeeds(peers Peers, seeds []string) Peers {
 		}
 	}
 	return peers
-}
-
-func initHello(peer *Peer, address string, port int) {
-	msg := &Message{
-		Type:    HELLO,
-		Payload: "Hello, seed!",
-	}
-
-	err := peer.Connect()
-	if err != nil {
-		handleDeadPeer(peer)
-		return
-	}
-
-	log.Debug().Str("peer", peer.String()).Msg("sending hello")
-	data, err := proto.Marshal(msg)
-	if err != nil {
-		log.Error().Err(err).Msg("failed Marshalling msg")
-	}
-	if err := peer.SendMsg(data); err != nil {
-		log.Error().Err(err).Msg("failed sending message")
-	}
-
-	log.Debug().Str("peer", peer.String()).Msg("waiting hello reply")
-	raw, err := peer.GetMessage()
-	if err != nil {
-		log.Error().Err(err).Msg("")
-		return
-	}
-
-	msg = new(Message)
-	err = proto.Unmarshal(raw, msg)
-	if err != nil {
-		log.Error().Err(err).Msg("failed unmarshalling message")
-		return
-	}
-
-	log.Debug().Str("payload", msg.Payload).Int("type", int(msg.Type)).Msg("received msg back")
-
-	myself := PbPeer{
-		Address:  address,
-		Port:     int64(port),
-		Protocol: "tcp",
-	}
-	data, err = proto.Marshal(&myself)
-	if err != nil {
-		log.Error().Err(err).Msg("failed Marshalling msg")
-	}
-	if err := peer.SendMsg(data); err != nil {
-		log.Error().Err(err).Msg("failed sending message")
-	}
-
-	peer.Connection.Close()
 }
 
 func handleDeadPeer(peer *Peer) {
