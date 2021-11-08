@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func Hello(peer *Peer, self *Peer) error {
+func Hello(peer *Peer, self *Peer) (*Peer, error) {
 	msg := &Message{
 		PeerID: self.ID,
 		Type:   HELLO,
@@ -15,30 +15,30 @@ func Hello(peer *Peer, self *Peer) error {
 
 	err := peer.Connect()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("failed Marshalling msg")
-		return err
+		return nil, err
 	}
 	if err := peer.SendMsg(data); err != nil {
 		log.Error().Err(err).Msg("failed sending message")
-		return err
+		return nil, err
 	}
 
 	raw, err := peer.GetMessage()
 	if err != nil {
 		log.Error().Err(err).Msg("")
-		return err
+		return nil, err
 	}
 
 	msg = new(Message)
 	err = proto.Unmarshal(raw, msg)
 	if err != nil {
 		log.Error().Err(err).Msg("failed unmarshalling message")
-		return err
+		return nil, err
 	}
 	peer.ID = msg.PeerID
 	log.Debug().Str("peer", peer.String()).Str("verb", "hello").Msg("")
@@ -52,16 +52,16 @@ func Hello(peer *Peer, self *Peer) error {
 	data, err = proto.Marshal(&myself)
 	if err != nil {
 		log.Error().Err(err).Msg("failed Marshalling msg")
-		return err
+		return nil, err
 	}
 	if err := peer.SendMsg(data); err != nil {
 		log.Error().Err(err).Msg("failed sending message")
-		return err
+		return nil, err
 	}
 
 	peer.Connection.Close()
 
-	return nil
+	return peer, nil
 }
 
 func handleHello(conn net.Conn, self *Peer, peer *Peer) *Peer {
@@ -96,7 +96,7 @@ func handleHello(conn net.Conn, self *Peer, peer *Peer) *Peer {
 	return peer
 }
 
-func GetPeers(self *Peer, from *Peer) ([]Peer, error) {
+func GetPeers(self *Peer, from *Peer) ([]*Peer, error) {
 	if err := from.Connect(); err != nil {
 		return nil, err
 	}
@@ -138,9 +138,9 @@ func GetPeers(self *Peer, from *Peer) ([]Peer, error) {
 		return nil, err
 	}
 
-	var peers []Peer
+	var peers []*Peer
 	for _, peer := range retrievedPeers.Peers {
-		p := Peer{
+		p := &Peer{
 			ID:       peer.ID,
 			Address:  peer.Address,
 			Port:     int(peer.Port),

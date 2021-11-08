@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"os"
@@ -74,13 +73,14 @@ func main() {
 
 	PeerList = make(Peers)
 	seedPeers := initialiseSeeds(cli.SeedHosts)
-	var newPeers []Peer
+	var newPeers []*Peer
 	for _, peer := range seedPeers {
-		if err := Hello(&peer, self); err != nil {
+		peer, err = Hello(peer, self)
+		if err != nil {
 			handleDeadPeer(peer)
 		}
 
-		peers, err := GetPeers(self, &peer)
+		peers, err := GetPeers(self, peer)
 		if err != nil {
 			log.Error().Err(err).Str("peer", peer.String()).Msg("error fetching peers")
 		} else {
@@ -90,7 +90,7 @@ func main() {
 	}
 	for _, p := range append(newPeers, seedPeers...) {
 		if p.ID != self.ID {
-			PeerList[p.ID] = &p
+			PeerList[p.ID] = p
 			log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("adding peer")
 		} else {
 			log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("skipping self")
@@ -115,8 +115,8 @@ func trapTerm() {
 	}()
 }
 
-func initialiseSeeds(seeds []string) []Peer {
-	var peers []Peer
+func initialiseSeeds(seeds []string) []*Peer {
+	var peers []*Peer
 
 	for _, seed := range seeds {
 		address := strings.Split(seed, ":")[0]
@@ -124,27 +124,24 @@ func initialiseSeeds(seeds []string) []Peer {
 		if err != nil {
 			log.Error().Err(err).Str("seed", seed).Msg("invalid port for seed")
 		} else {
-			newPeer := Peer{Address: address, Port: port, Protocol: "tcp"}
+			newPeer := &Peer{Address: address, Port: port, Protocol: "tcp"}
 			peers = append(peers, newPeer)
 		}
 	}
 	return peers
 }
 
-func handleDeadPeer(peer Peer) {
+func handleDeadPeer(peer *Peer) {
 	log.Info().Str("peer", peer.String()).Msg("removing dead peer")
 	delete(PeerList, peer.ID)
 }
 
 func updateHostID(self *Peer) error {
-	salt := make([]byte, 32)
-	rand.Read(salt)
-
 	id, err := machineid.ID()
 	if err != nil {
 		return err
 	}
-	h := sha256.Sum256(append([]byte(self.String()+id), salt...))
+	h := sha256.Sum256([]byte(self.String() + id))
 	self.ID = base64.StdEncoding.EncodeToString(h[:32])
 
 	return nil
