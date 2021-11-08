@@ -1,17 +1,15 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
 	"strconv"
-
-	"github.com/rs/zerolog/log"
 )
 
 type Peer struct {
+	ID         string
 	Address    string
 	Port       int
 	Protocol   string
@@ -20,11 +18,6 @@ type Peer struct {
 
 func (p Peer) String() string {
 	return fmt.Sprintf("%s:%d/%s", p.Address, p.Port, p.Protocol)
-}
-
-func (p Peer) Hash() string {
-	h := sha256.Sum256([]byte(p.String()))
-	return string(h[:32])
 }
 
 func (p Peer) Equal(other Peer) bool {
@@ -36,7 +29,6 @@ func (p Peer) Equal(other Peer) bool {
 }
 
 func (p *Peer) Connect() (err error) {
-	log.Debug().Str("peer", p.String()).Msg("opened connection")
 	p.Connection, err = net.Dial(p.Protocol, p.Address+":"+strconv.Itoa(p.Port))
 	return
 }
@@ -44,7 +36,6 @@ func (p *Peer) Connect() (err error) {
 func (p *Peer) Disconnect() {
 	if p.Connection != nil {
 		p.Connection.Close()
-		log.Debug().Str("peer", p.String()).Msg("closed connection")
 	}
 }
 

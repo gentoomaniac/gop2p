@@ -28,11 +28,11 @@ func startListener(host string, self *Peer) {
 			os.Exit(1)
 		}
 		handlers.Add(1)
-		go handleIncomingMessage(conn, &handlers)
+		go handleIncomingMessage(conn, self, &handlers)
 	}
 }
 
-func handleIncomingMessage(conn net.Conn, wg *sync.WaitGroup) {
+func handleIncomingMessage(conn net.Conn, self *Peer, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer conn.Close()
 
@@ -62,7 +62,12 @@ func handleIncomingMessage(conn net.Conn, wg *sync.WaitGroup) {
 	switch msg.GetType() {
 	case HELLO:
 		log.Debug().Str("peer", peer.String()).Str("verb", "hello").Msg("")
-		handleHello(conn, peer, PeerList)
+		peer = handleHello(conn, self, peer)
+		if _, exists := PeerList[peer.ID]; !exists {
+			PeerList[peer.ID] = peer
+			log.Info().Str("peer", peer.String()).Str("id", peer.ID).Msg("got new peer")
+		}
+
 	case GETPEERS:
 		log.Debug().Str("peer", peer.String()).Str("verb", "getpeers").Msg("")
 		handleGetPeers(conn, peer, PeerList, msg)

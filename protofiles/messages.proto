@@ -5,8 +5,9 @@ package main;
 option go_package = "github.com/gentoomaniac/gop2p";
 
 message Message {
-    int64  type = 1;
-    bytes payload = 2;
+    string peerID = 1;
+    int64  type = 2;
+    bytes  payload = 3;
 }
 
 // Peer management
@@ -14,9 +15,10 @@ message GetPeersOptions {
     int64 limit = 1;
 }
 message PbPeer {
-    string address = 1;
-    int64  port = 2;
-    string protocol = 3;
+    string ID = 1;
+    string address = 2;
+    int64  port = 3;
+    string protocol = 4;
 }
 message PeersList {
     repeated PbPeer peers = 1;

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"os"
 	"os/signal"
 	"strconv"
@@ -8,6 +11,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/denisbrodbeck/machineid"
 	"github.com/rs/zerolog/log"
 
 	"github.com/gentoomaniac/gocli"
@@ -50,7 +54,6 @@ func main() {
 	})
 	logging.Setup(&cli.LoggingConfig)
 
-	PeerList = initialiseSeeds(PeerList, cli.SeedHosts)
 	RUN = true
 	trapTerm()
 
@@ -59,21 +62,38 @@ func main() {
 		Port:     cli.ListenPort,
 		Protocol: "tcp",
 	}
+	err := updateHostID(self)
+	if err != nil {
+		log.Error().Err(err).Msg("could not generate host ID")
+		ctx.Exit(1)
+	}
+	log.Info().Str("hostID", self.ID).Msg("")
 
 	go startListener(cli.ListenAddrress, self)
 	time.Sleep(2 * time.Second)
 
+	PeerList = make(Peers)
+	seedPeers := initialiseSeeds(cli.SeedHosts)
 	var newPeers []Peer
-	for _, peer := range PeerList {
-		Hello(peer, self)
-		newPeers := append(newPeers, GetPeers(self, peer)...)
-		log.Debug().Str("from", peer.String()).Int("amount", len(newPeers)).Msg("received peers")
+	for _, peer := range seedPeers {
+		if err := Hello(&peer, self); err != nil {
+			handleDeadPeer(peer)
+		}
+
+		peers, err := GetPeers(self, &peer)
+		if err != nil {
+			log.Error().Err(err).Str("peer", peer.String()).Msg("error fetching peers")
+		} else {
+			newPeers = append(newPeers, peers...)
+			log.Debug().Str("from", peer.String()).Int("amount", len(newPeers)).Msg("received peers")
+		}
 	}
-	for _, p := range newPeers {
-		log.Debug().Str("peer", p.String()).Msg("received peer")
-		if _, exists := PeerList[p.Hash()]; !exists && p.Hash() != self.Hash() {
-			PeerList[p.Hash()] = &p
-			log.Debug().Str("newPeer", p.String()).Msg("received new peer")
+	for _, p := range append(newPeers, seedPeers...) {
+		if p.ID != self.ID {
+			PeerList[p.ID] = &p
+			log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("adding peer")
+		} else {
+			log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("skipping self")
 		}
 	}
 
@@ -95,8 +115,8 @@ func trapTerm() {
 	}()
 }
 
-func initialiseSeeds(peers Peers, seeds []string) Peers {
-	peers = make(Peers)
+func initialiseSeeds(seeds []string) []Peer {
+	var peers []Peer
 
 	for _, seed := range seeds {
 		address := strings.Split(seed, ":")[0]
@@ -104,15 +124,28 @@ func initialiseSeeds(peers Peers, seeds []string) Peers {
 		if err != nil {
 			log.Error().Err(err).Str("seed", seed).Msg("invalid port for seed")
 		} else {
-			newPeer := &Peer{Address: address, Port: port, Protocol: "tcp"}
-			peers[newPeer.Hash()] = newPeer
-			log.Debug().Str("seedNode", newPeer.String()).Msg("added new peer")
+			newPeer := Peer{Address: address, Port: port, Protocol: "tcp"}
+			peers = append(peers, newPeer)
 		}
 	}
 	return peers
 }
 
-func handleDeadPeer(peer *Peer) {
+func handleDeadPeer(peer Peer) {
 	log.Info().Str("peer", peer.String()).Msg("removing dead peer")
-	delete(PeerList, peer.Hash())
+	delete(PeerList, peer.ID)
+}
+
+func updateHostID(self *Peer) error {
+	salt := make([]byte, 32)
+	rand.Read(salt)
+
+	id, err := machineid.ID()
+	if err != nil {
+		return err
+	}
+	h := sha256.Sum256(append([]byte(self.String()+id), salt...))
+	self.ID = base64.StdEncoding.EncodeToString(h[:32])
+
+	return nil
 }
