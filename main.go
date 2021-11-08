@@ -88,13 +88,21 @@ func main() {
 			log.Debug().Str("from", peer.String()).Int("amount", len(newPeers)).Msg("received peers")
 		}
 	}
-	for _, p := range append(newPeers, seedPeers...) {
+	for _, p := range newPeers {
 		if p.ID != self.ID {
-			PeerList[p.ID] = p
-			log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("adding peer")
+			if _, err := Hello(p, self); err == nil {
+				PeerList[p.ID] = p
+				log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("adding peer")
+			} else {
+				log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("dropping dead peer")
+			}
 		} else {
 			log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("skipping self")
 		}
+	}
+	for _, p := range seedPeers {
+		PeerList[p.ID] = p
+		log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("adding seed peer")
 	}
 
 	for RUN {
