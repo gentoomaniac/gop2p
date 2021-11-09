@@ -1,92 +1,35 @@
-# Template go Repository
+# p2p Experiments
 
 ## tl;dr
 
-This is a template go repository with actions already set up to create compiled releases
+This project is for educational purposes and tries to implement a basic p2p network using protobuf for message encoding.
 
-## What does this Template provide?
+## Status
 
-* a basic cli application with subcommands based on [Kong](https://github.com/alecthomas/kong)
-* logging using zerolog
-* some customisations like a more descriptive version info
-* GitHub workflow to run tests on every push
-* GitHub Workflow to build binary releases with [goreleaser](https://github.com/goreleaser/goreleaser)
+Peers can exchange information about other known peers.
 
-## What is missing?
+## Protocol
 
-* A sample for a spinner using [spinner](https://github.com/briandowns/spinner)
-* some sample code for a cli interactive selection dialogue using [promptui](https://github.com/manifoldco/promptui)
+### Wire
 
-## How to use this template
+* a little endian encoded uint64 that specifies the size of the next message
+* the message itself
 
-### Fetch the project
+### Application level
 
-```bash
-git clone https://github.com/gentoomaniac/go-template.git ./
-rm -r .git
-```
+#### HELLO
 
-### update all references to the template
+A peer sends a `Message` with type `HELLO` to announce itself to another peer.
 
-```
-# goreleaser IDs and binary names
-sed 's/template-application/my-new-application/g' .goreleaser.yaml
+The other node is replying with a `HELLO`.
 
-# go.mod
-sed 's#gentoomaniac/go-template#githubuser/reponame#g' go.mod
-```
+The initiating peer is replying with a `Peer` containing it's own data
+(ToDo: move this into the payload of the `HELLO`)
 
-### check in the code
 
-```
-git init
-git add -A
-git commit -m 'import template'
-```
+#### GETPEERS
 
-## How to build locally
+A peer sends a `Message` with type `GETPEERS` to ask for other known peers.
+The payload of the request is `GetPeersOptions` object.
 
-```
-goreleaser build --single-target --snapshot
-```
-
-## Example runs
-
-### help
-
-```
-> template-application --help
-Usage: template-application <command>
-
-Flags:
-  -h, --help             Show context-sensitive help.
-  -v, --verbosity=INT    Increase verbosity.
-  -q, --quiet            Do not run upgrades.
-      --json             Log as json
-      --debug            shortcut for -vvvv
-
-Commands:
-  foo
-    FooBar command
-
-Run "template-application <command> --help" for more information on a command.
-```
-
-### logging
-
-```
-> template-application -vvv
-8:40PM INF Default command
-```
-
-```
-> template-application -vvv --json foo
-{"level":"info","time":"2021-11-05T20:41:33+01:00","message":"foo command"}
-```
-
-### version
-
-```
-template-application -V
-template-application commit:bf9d771 release:snapshot build:workflow/1 date:2021-11-05T19:58:00Z goVersion:go1.17.2 platform:linux/amd64
-```
+The receiving node will reply with `[n <=limit]` `Peer` objects.
