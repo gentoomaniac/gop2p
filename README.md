@@ -4,6 +4,8 @@
 
 This project is for educational purposes and tries to implement a basic p2p network using protobuf for message encoding.
 
+![Nodes exchanging information on connect](img/p2p.jpg)
+
 ## Status
 
 Peers can exchange information about other known peers.
