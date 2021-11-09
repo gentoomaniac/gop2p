@@ -10,6 +10,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	HELLO int64 = iota + 1
+	GETPEERS
+)
+
 func SendMsg(conn net.Conn, msg []byte) error {
 	var b [16]byte
 	bs := b[:16]
