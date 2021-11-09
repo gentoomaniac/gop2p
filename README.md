@@ -28,7 +28,6 @@ The other node is replying with a `HELLO`.
 The initiating peer is replying with a `Peer` containing it's own data
 (ToDo: move this into the payload of the `HELLO`)
 
-
 #### GETPEERS
 
 A peer sends a `Message` with type `GETPEERS` to ask for other known peers.
