@@ -14,12 +14,12 @@ message Message {
 message GetPeersOptions {
     int64 limit = 1;
 }
-message PbPeer {
-    string ID = 1;
+message Peer {
+    string id = 1;
     string address = 2;
     int64  port = 3;
     string protocol = 4;
 }
 message PeersList {
-    repeated PbPeer peers = 1;
+    repeated Peer peers = 1;
 }

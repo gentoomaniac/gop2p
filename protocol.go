@@ -1,34 +1,68 @@
 package main
 
 import (
+	"encoding/binary"
+	"io"
 	"net"
+	"strconv"
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 )
 
+func SendMsg(conn net.Conn, msg []byte) error {
+	var b [16]byte
+	bs := b[:16]
+	binary.LittleEndian.PutUint64(bs, uint64(len(msg)))
+	_, err := conn.Write(bs)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Write(msg)
+
+	return err
+}
+
+func GetMessage(conn net.Conn) ([]byte, error) {
+	var b [16]byte
+	bs := b[:16]
+
+	_, err := io.ReadFull(conn, bs)
+	if err != nil {
+		return nil, err
+	}
+	numBytes := uint64(binary.LittleEndian.Uint64(bs))
+	data := make([]byte, numBytes)
+	_, err = io.ReadFull(conn, data)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 func Hello(peer *Peer, self *Peer) (*Peer, error) {
 	msg := &Message{
-		PeerID: self.ID,
+		PeerID: self.Id,
 		Type:   HELLO,
 	}
 
-	err := peer.Connect()
+	conn, err := net.Dial(peer.Protocol, peer.Address+":"+strconv.Itoa(int(peer.Port)))
 	if err != nil {
 		return peer, err
 	}
+	defer conn.Close()
 
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("failed Marshalling msg")
 		return peer, err
 	}
-	if err := peer.SendMsg(data); err != nil {
+	if err := SendMsg(conn, data); err != nil {
 		log.Error().Err(err).Msg("failed sending message")
 		return peer, err
 	}
 
-	raw, err := peer.GetMessage()
+	raw, err := GetMessage(conn)
 	if err != nil {
 		log.Error().Err(err).Msg("")
 		return peer, err
@@ -40,33 +74,26 @@ func Hello(peer *Peer, self *Peer) (*Peer, error) {
 		log.Error().Err(err).Msg("failed unmarshalling message")
 		return peer, err
 	}
-	peer.ID = msg.PeerID
-	log.Debug().Str("peer", peer.String()).Str("verb", "hello").Msg("")
+	peer.Id = msg.PeerID
+	log.Debug().Str("peer", peer.ConnectString()).Str("verb", "hello").Msg("")
 
-	myself := PbPeer{
-		ID:       self.ID,
-		Address:  self.Address,
-		Port:     int64(self.Port),
-		Protocol: self.Protocol,
-	}
-	data, err = proto.Marshal(&myself)
+	data, err = proto.Marshal(self)
 	if err != nil {
 		log.Error().Err(err).Msg("failed Marshalling msg")
 		return peer, err
 	}
-	if err := peer.SendMsg(data); err != nil {
+	if err := SendMsg(conn, data); err != nil {
 		log.Error().Err(err).Msg("failed sending message")
 		return peer, err
 	}
 
-	peer.Connection.Close()
-
+	conn.Close()
 	return peer, nil
 }
 
 func handleHello(conn net.Conn, self *Peer, peer *Peer) *Peer {
 	msg := &Message{
-		PeerID: self.ID,
+		PeerID: self.Id,
 		Type:   HELLO,
 	}
 
@@ -74,32 +101,33 @@ func handleHello(conn net.Conn, self *Peer, peer *Peer) *Peer {
 	if err != nil {
 		log.Error().Err(err).Msg("failed Marshalling msg")
 	}
-	if err := peer.SendMsg(data); err != nil {
+	if err := SendMsg(conn, data); err != nil {
 		log.Error().Err(err).Msg("failed sending message")
 	}
 
-	raw, err := peer.GetMessage()
+	raw, err := GetMessage(conn)
 	if err != nil {
 		log.Error().Err(err).Msg("")
 		return nil
 	}
-	rPeer := new(PbPeer)
+	rPeer := new(Peer)
 	err = proto.Unmarshal(raw, rPeer)
 	if err != nil {
 		log.Error().Err(err).Msg("failed unmarshalling message")
 		return nil
 	}
-	peer.ID = rPeer.ID
-	peer.Port = int(rPeer.Port)
-	peer.Protocol = rPeer.Protocol
+	rPeer.Address = peer.Address
 
-	return peer
+	return rPeer
 }
 
 func GetPeers(self *Peer, from *Peer) ([]*Peer, error) {
-	if err := from.Connect(); err != nil {
+	conn, err := net.Dial(from.Protocol, from.Address+":"+strconv.Itoa(int(from.Port)))
+	if err != nil {
 		return nil, err
 	}
+	defer conn.Close()
+
 	options := &GetPeersOptions{
 		Limit: 0,
 	}
@@ -114,22 +142,22 @@ func GetPeers(self *Peer, from *Peer) ([]*Peer, error) {
 		Payload: optionsBytes,
 	}
 
-	log.Debug().Str("peer", from.String()).Str("verb", "getpeers").Msg("")
+	log.Debug().Str("peer", from.ConnectString()).Str("verb", "getpeers").Msg("")
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("failed Marshalling msg")
 		return nil, err
 	}
-	if err := from.SendMsg(data); err != nil {
+	if err := SendMsg(conn, data); err != nil {
 		log.Error().Err(err).Msg("failed sending message")
 		return nil, err
 	}
-	raw, err := from.GetMessage()
+	raw, err := GetMessage(conn)
 	if err != nil {
 		log.Error().Err(err).Msg("")
 		return nil, err
 	}
-	from.Connection.Close()
+	conn.Close()
 
 	retrievedPeers := new(PeersList)
 	err = proto.Unmarshal(raw, retrievedPeers)
@@ -139,13 +167,7 @@ func GetPeers(self *Peer, from *Peer) ([]*Peer, error) {
 	}
 
 	var peers []*Peer
-	for _, peer := range retrievedPeers.Peers {
-		p := &Peer{
-			ID:       peer.ID,
-			Address:  peer.Address,
-			Port:     int(peer.Port),
-			Protocol: peer.Protocol,
-		}
+	for _, p := range retrievedPeers.Peers {
 		peers = append(peers, p)
 	}
 
@@ -168,13 +190,8 @@ func handleGetPeers(conn net.Conn, peer *Peer, peers Peers, msg *Message) {
 
 	sendList := new(PeersList)
 	for _, p := range peers {
-		sendList.Peers = append(sendList.Peers, &PbPeer{
-			ID:       p.ID,
-			Address:  p.Address,
-			Port:     int64(p.Port),
-			Protocol: p.Protocol,
-		})
-		log.Debug().Str("to", peer.String()).Str("peer", p.String()).Str("id", p.ID).Str("verb", "sentpeers").Msg("")
+		sendList.Peers = append(sendList.Peers, p)
+		log.Debug().Str("to", peer.ConnectString()).Str("peer", p.ConnectString()).Str("id", p.Id).Str("verb", "sentpeers").Msg("")
 		if len(sendList.Peers) == limit {
 			break
 		}
@@ -184,7 +201,7 @@ func handleGetPeers(conn net.Conn, peer *Peer, peers Peers, msg *Message) {
 	if err != nil {
 		log.Error().Err(err).Msg("failed Marshalling msg")
 	}
-	if err := peer.SendMsg(data); err != nil {
+	if err := SendMsg(conn, data); err != nil {
 		log.Error().Err(err).Msg("failed sending message")
 	}
 }

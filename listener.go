@@ -19,7 +19,7 @@ func startListener(host string, self *Peer) {
 	}
 	defer l.Close()
 
-	log.Info().Str("listenAddress", host).Int("listenPort", self.Port).Str("protocol", self.Protocol).Msg("starting to listen for new connections ...")
+	log.Info().Str("listenAddress", host).Int64("listenPort", self.Port).Str("protocol", self.Protocol).Msg("starting to listen for new connections ...")
 	var handlers sync.WaitGroup
 	for RUN {
 		conn, err := l.Accept()
@@ -40,13 +40,12 @@ func handleIncomingMessage(conn net.Conn, self *Peer, wg *sync.WaitGroup) {
 	address := strings.Join(s[:len(s)-1], ":")
 	port, _ := strconv.Atoi(s[len(s)-1])
 	peer := &Peer{
-		Address:    address,
-		Port:       port,
-		Protocol:   "tcp",
-		Connection: conn,
+		Address:  address,
+		Port:     int64(port),
+		Protocol: "tcp",
 	}
 
-	raw, err := peer.GetMessage()
+	raw, err := GetMessage(conn)
 	if err != nil {
 		log.Error().Err(err).Msg("")
 		return
@@ -61,15 +60,15 @@ func handleIncomingMessage(conn net.Conn, self *Peer, wg *sync.WaitGroup) {
 
 	switch msg.GetType() {
 	case HELLO:
-		log.Debug().Str("peer", peer.String()).Str("verb", "hello").Msg("")
+		log.Debug().Str("peer", peer.ConnectString()).Str("verb", "hello").Msg("")
 		peer = handleHello(conn, self, peer)
-		if _, exists := PeerList[peer.ID]; !exists {
-			PeerList[peer.ID] = peer
-			log.Info().Str("peer", peer.String()).Str("id", peer.ID).Msg("got new peer")
+		if _, exists := PeerList[peer.Id]; !exists {
+			PeerList[peer.Id] = peer
+			log.Info().Str("peer", peer.ConnectString()).Str("id", peer.Id).Msg("got new peer")
 		}
 
 	case GETPEERS:
-		log.Debug().Str("peer", peer.String()).Str("verb", "getpeers").Msg("")
+		log.Debug().Str("peer", peer.ConnectString()).Str("verb", "getpeers").Msg("")
 		handleGetPeers(conn, peer, PeerList, msg)
 
 	default:

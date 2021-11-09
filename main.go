@@ -36,7 +36,7 @@ var cli struct {
 	logging.LoggingConfig
 
 	ListenAddrress string   `short:"l" default:"0.0.0.0" help:"adress to listen on for new connections"`
-	ListenPort     int      `short:"p" default:"1234" help:"port to listen on for new connections"`
+	ListenPort     int64    `short:"p" default:"1234" help:"port to listen on for new connections"`
 	ConnectionType string   `short:"t" default:"tcp" enum:"tcp,udp" help:"the type of connection to use"`
 	SeedHosts      []string `short:"s" help:"seed host in the form of <address>:<port>"`
 
@@ -66,7 +66,7 @@ func main() {
 		log.Error().Err(err).Msg("could not generate host ID")
 		ctx.Exit(1)
 	}
-	log.Info().Str("hostID", self.ID).Msg("")
+	log.Info().Str("hostID", self.Id).Msg("")
 
 	go startListener(cli.ListenAddrress, self)
 	time.Sleep(2 * time.Second)
@@ -82,27 +82,27 @@ func main() {
 
 		peers, err := GetPeers(self, peer)
 		if err != nil {
-			log.Error().Err(err).Str("peer", peer.String()).Msg("error fetching peers")
+			log.Error().Err(err).Str("peer", peer.ConnectString()).Msg("error fetching peers")
 		} else {
 			newPeers = append(newPeers, peers...)
-			log.Debug().Str("from", peer.String()).Int("amount", len(newPeers)).Msg("received peers")
+			log.Debug().Str("from", peer.ConnectString()).Int("amount", len(newPeers)).Msg("received peers")
 		}
 	}
 	for _, p := range newPeers {
-		if p.ID != self.ID {
+		if p.Id != self.Id {
 			if _, err := Hello(p, self); err == nil {
-				PeerList[p.ID] = p
-				log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("adding peer")
+				PeerList[p.Id] = p
+				log.Debug().Str("peer", p.ConnectString()).Str("id", p.Id).Msg("adding peer")
 			} else {
-				log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("dropping dead peer")
+				log.Debug().Str("peer", p.ConnectString()).Str("id", p.Id).Msg("dropping dead peer")
 			}
 		} else {
-			log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("skipping self")
+			log.Debug().Str("peer", p.ConnectString()).Str("id", p.Id).Msg("skipping self")
 		}
 	}
 	for _, p := range seedPeers {
-		PeerList[p.ID] = p
-		log.Debug().Str("peer", p.String()).Str("id", p.ID).Msg("adding seed peer")
+		PeerList[p.Id] = p
+		log.Debug().Str("peer", p.ConnectString()).Str("id", p.Id).Msg("adding seed peer")
 	}
 
 	for RUN {
@@ -132,7 +132,7 @@ func initialiseSeeds(seeds []string) []*Peer {
 		if err != nil {
 			log.Error().Err(err).Str("seed", seed).Msg("invalid port for seed")
 		} else {
-			newPeer := &Peer{Address: address, Port: port, Protocol: "tcp"}
+			newPeer := &Peer{Address: address, Port: int64(port), Protocol: "tcp"}
 			peers = append(peers, newPeer)
 		}
 	}
@@ -140,9 +140,9 @@ func initialiseSeeds(seeds []string) []*Peer {
 }
 
 func handleDeadPeer(peer *Peer) {
-	log.Info().Str("peer", peer.String()).Msg("removing dead peer")
+	log.Info().Str("peer", peer.ConnectString()).Msg("removing dead peer")
 	if PeerList != nil {
-		delete(PeerList, peer.ID)
+		delete(PeerList, peer.Id)
 	}
 }
 
@@ -151,8 +151,12 @@ func updateHostID(self *Peer) error {
 	if err != nil {
 		return err
 	}
-	h := sha256.Sum256([]byte(self.String() + id))
-	self.ID = base64.StdEncoding.EncodeToString(h[:32])
+	h := sha256.Sum256([]byte(self.ConnectString() + id))
+	self.Id = base64.StdEncoding.EncodeToString(h[:32])
 
 	return nil
+}
+
+func (p *Peer) ConnectString() string {
+	return p.Address + ":" + strconv.Itoa(int(p.Port)) + "/" + p.Protocol
 }
