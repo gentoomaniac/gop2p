@@ -15,30 +15,30 @@ func Hello(peer *Peer, self *Peer) (*Peer, error) {
 
 	err := peer.Connect()
 	if err != nil {
-		return nil, err
+		return peer, err
 	}
 
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("failed Marshalling msg")
-		return nil, err
+		return peer, err
 	}
 	if err := peer.SendMsg(data); err != nil {
 		log.Error().Err(err).Msg("failed sending message")
-		return nil, err
+		return peer, err
 	}
 
 	raw, err := peer.GetMessage()
 	if err != nil {
 		log.Error().Err(err).Msg("")
-		return nil, err
+		return peer, err
 	}
 
 	msg = new(Message)
 	err = proto.Unmarshal(raw, msg)
 	if err != nil {
 		log.Error().Err(err).Msg("failed unmarshalling message")
-		return nil, err
+		return peer, err
 	}
 	peer.ID = msg.PeerID
 	log.Debug().Str("peer", peer.String()).Str("verb", "hello").Msg("")
@@ -52,11 +52,11 @@ func Hello(peer *Peer, self *Peer) (*Peer, error) {
 	data, err = proto.Marshal(&myself)
 	if err != nil {
 		log.Error().Err(err).Msg("failed Marshalling msg")
-		return nil, err
+		return peer, err
 	}
 	if err := peer.SendMsg(data); err != nil {
 		log.Error().Err(err).Msg("failed sending message")
-		return nil, err
+		return peer, err
 	}
 
 	peer.Connection.Close()

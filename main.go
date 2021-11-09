@@ -141,7 +141,9 @@ func initialiseSeeds(seeds []string) []*Peer {
 
 func handleDeadPeer(peer *Peer) {
 	log.Info().Str("peer", peer.String()).Msg("removing dead peer")
-	delete(PeerList, peer.ID)
+	if PeerList != nil {
+		delete(PeerList, peer.ID)
+	}
 }
 
 func updateHostID(self *Peer) error {
