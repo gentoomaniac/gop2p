@@ -171,12 +171,7 @@ func GetPeers(self *Peer, from *Peer) ([]*Peer, error) {
 		return nil, err
 	}
 
-	var peers []*Peer
-	for _, p := range retrievedPeers.Peers {
-		peers = append(peers, p)
-	}
-
-	return peers, nil
+	return retrievedPeers.Peers, nil
 }
 
 func handleGetPeers(conn net.Conn, peer *Peer, peers Peers, msg *Message) {
