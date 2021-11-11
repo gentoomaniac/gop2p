@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
@@ -67,7 +68,7 @@ func main() {
 		ctx.Exit(1)
 	}
 	self.Id = id[:32]
-	log.Info().Str("hostID", hex.EncodeToString(self.Id)).Msg("")
+	log.Info().Str("hostID", self.IDString()).Msg("")
 
 	go startListener(cli.ListenAddrress, self)
 	time.Sleep(2 * time.Second)
@@ -90,20 +91,20 @@ func main() {
 		}
 	}
 	for _, p := range newPeers {
-		if hex.EncodeToString(p.Id) != hex.EncodeToString(self.Id) {
+		if !bytes.Equal(p.Id, self.Id) {
 			if _, err := Hello(p, self); err == nil {
 				PeerList[p.Sha256()] = p
-				log.Debug().Str("peer", p.ConnectString()).Str("id", hex.EncodeToString(p.Id)).Msg("adding peer")
+				log.Debug().Str("peer", p.ConnectString()).Str("id", p.IDString()).Msg("adding peer")
 			} else {
-				log.Debug().Str("peer", p.ConnectString()).Str("id", hex.EncodeToString(p.Id)).Msg("dropping dead peer")
+				log.Debug().Str("peer", p.ConnectString()).Str("id", p.IDString()).Msg("dropping dead peer")
 			}
 		} else {
-			log.Debug().Str("peer", p.ConnectString()).Str("id", hex.EncodeToString(p.Id)).Msg("skipping self")
+			log.Debug().Str("peer", p.ConnectString()).Str("id", p.IDString()).Msg("skipping self")
 		}
 	}
 	for _, p := range seedPeers {
 		PeerList[p.Sha256()] = p
-		log.Debug().Str("peer", p.ConnectString()).Str("id", hex.EncodeToString(p.Id)).Msg("adding seed peer")
+		log.Debug().Str("peer", p.ConnectString()).Str("id", p.IDString()).Msg("adding seed peer")
 	}
 
 	for RUN {
@@ -164,4 +165,8 @@ func (p *Peer) Sha256() [32]byte {
 	copy(sha[:], p.Id[:32])
 
 	return sha
+}
+
+func (p *Peer) IDString() string {
+	return hex.EncodeToString(p.Id)
 }

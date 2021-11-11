@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"net"
 	"os"
 	"strconv"
@@ -65,7 +64,7 @@ func handleIncomingMessage(conn net.Conn, self *Peer, wg *sync.WaitGroup) {
 		peer = handleHello(conn, self, peer)
 		if _, exists := PeerList[peer.Sha256()]; !exists {
 			PeerList[peer.Sha256()] = peer
-			log.Info().Str("peer", peer.ConnectString()).Str("id", hex.EncodeToString(peer.Id)).Msg("got new peer")
+			log.Info().Str("peer", peer.ConnectString()).Str("id", peer.IDString()).Msg("got new peer")
 		}
 
 	case GETPEERS:

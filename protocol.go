@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"io"
 	"net"
 	"strconv"
@@ -192,7 +191,7 @@ func handleGetPeers(conn net.Conn, peer *Peer, peers Peers, msg *Message) {
 	sendList := new(PeersList)
 	for _, p := range peers {
 		sendList.Peers = append(sendList.Peers, p)
-		log.Debug().Str("to", peer.ConnectString()).Str("peer", p.ConnectString()).Str("id", hex.EncodeToString(p.Id)).Str("verb", "sentpeers").Msg("")
+		log.Debug().Str("to", peer.ConnectString()).Str("peer", p.ConnectString()).Str("id", p.IDString()).Str("verb", "sentpeers").Msg("")
 		if len(sendList.Peers) == limit {
 			break
 		}
