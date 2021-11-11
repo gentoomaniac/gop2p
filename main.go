@@ -2,7 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
-	"encoding/base64"
+	"encoding/hex"
 	"os"
 	"os/signal"
 	"strconv"
@@ -25,7 +25,7 @@ var (
 	date    = "unknown"
 )
 
-type Peers map[string]*Peer
+type Peers map[[32]byte]*Peer
 
 var (
 	PeerList Peers
@@ -61,12 +61,13 @@ func main() {
 		Port:     cli.ListenPort,
 		Protocol: "tcp",
 	}
-	err := updateHostID(self)
+	id, err := genHostID(self)
 	if err != nil {
 		log.Error().Err(err).Msg("could not generate host ID")
 		ctx.Exit(1)
 	}
-	log.Info().Str("hostID", self.Id).Msg("")
+	self.Id = id[:32]
+	log.Info().Str("hostID", hex.EncodeToString(self.Id)).Msg("")
 
 	go startListener(cli.ListenAddrress, self)
 	time.Sleep(2 * time.Second)
@@ -89,20 +90,20 @@ func main() {
 		}
 	}
 	for _, p := range newPeers {
-		if p.Id != self.Id {
+		if hex.EncodeToString(p.Id) != hex.EncodeToString(self.Id) {
 			if _, err := Hello(p, self); err == nil {
-				PeerList[p.Id] = p
-				log.Debug().Str("peer", p.ConnectString()).Str("id", p.Id).Msg("adding peer")
+				PeerList[p.Sha256()] = p
+				log.Debug().Str("peer", p.ConnectString()).Str("id", hex.EncodeToString(p.Id)).Msg("adding peer")
 			} else {
-				log.Debug().Str("peer", p.ConnectString()).Str("id", p.Id).Msg("dropping dead peer")
+				log.Debug().Str("peer", p.ConnectString()).Str("id", hex.EncodeToString(p.Id)).Msg("dropping dead peer")
 			}
 		} else {
-			log.Debug().Str("peer", p.ConnectString()).Str("id", p.Id).Msg("skipping self")
+			log.Debug().Str("peer", p.ConnectString()).Str("id", hex.EncodeToString(p.Id)).Msg("skipping self")
 		}
 	}
 	for _, p := range seedPeers {
-		PeerList[p.Id] = p
-		log.Debug().Str("peer", p.ConnectString()).Str("id", p.Id).Msg("adding seed peer")
+		PeerList[p.Sha256()] = p
+		log.Debug().Str("peer", p.ConnectString()).Str("id", hex.EncodeToString(p.Id)).Msg("adding seed peer")
 	}
 
 	for RUN {
@@ -142,21 +143,25 @@ func initialiseSeeds(seeds []string) []*Peer {
 func handleDeadPeer(peer *Peer) {
 	log.Info().Str("peer", peer.ConnectString()).Msg("removing dead peer")
 	if PeerList != nil {
-		delete(PeerList, peer.Id)
+		delete(PeerList, peer.Sha256())
 	}
 }
 
-func updateHostID(self *Peer) error {
+func genHostID(self *Peer) ([32]byte, error) {
 	id, err := machineid.ID()
 	if err != nil {
-		return err
+		return [32]byte{}, err
 	}
-	h := sha256.Sum256([]byte(self.ConnectString() + id))
-	self.Id = base64.StdEncoding.EncodeToString(h[:32])
-
-	return nil
+	return sha256.Sum256([]byte(self.ConnectString() + id)), nil
 }
 
 func (p *Peer) ConnectString() string {
 	return p.Address + ":" + strconv.Itoa(int(p.Port)) + "/" + p.Protocol
+}
+
+func (p *Peer) Sha256() [32]byte {
+	sha := [32]byte{}
+	copy(sha[:], p.Id[:32])
+
+	return sha
 }
