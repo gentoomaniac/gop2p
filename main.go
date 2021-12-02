@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"math/big"
 	"os"
 	"os/signal"
 	"strconv"
@@ -94,7 +95,7 @@ func main() {
 		if !bytes.Equal(p.Id, self.Id) {
 			if _, err := Hello(p, self); err == nil {
 				PeerList[p.Sha256()] = p
-				log.Debug().Str("peer", p.ConnectString()).Str("id", p.IDString()).Msg("adding peer")
+				log.Debug().Str("peer", p.ConnectString()).Str("id", p.IDString()).Str("distance", self.Distance(p.Id).String()).Msg("adding peer")
 			} else {
 				log.Debug().Str("peer", p.ConnectString()).Str("id", p.IDString()).Msg("dropping dead peer")
 			}
@@ -104,7 +105,7 @@ func main() {
 	}
 	for _, p := range seedPeers {
 		PeerList[p.Sha256()] = p
-		log.Debug().Str("peer", p.ConnectString()).Str("id", p.IDString()).Msg("adding seed peer")
+		log.Debug().Str("peer", p.ConnectString()).Str("id", p.IDString()).Str("distance", self.Distance(p.Id).String()).Msg("adding seed peer")
 	}
 
 	for RUN {
@@ -169,4 +170,16 @@ func (p *Peer) Sha256() [32]byte {
 
 func (p *Peer) IDString() string {
 	return hex.EncodeToString(p.Id)
+}
+
+func (p *Peer) Distance(toID []byte) *big.Int {
+	to := &big.Int{}
+	to.SetBytes(toID)
+
+	from := &big.Int{}
+	from.SetBytes(p.Id)
+
+	distance := &big.Int{}
+	distance.Xor(from, to)
+	return distance
 }
